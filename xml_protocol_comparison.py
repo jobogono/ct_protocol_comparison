@@ -2,8 +2,10 @@
 """
 Created on Mon Sep 19 13:36:21 2022
 
-@author: BognarJ
+@author: Joshua Bognar
 
+Takes two raw protocol exports from Siemens Force series (Force, Flash, etc.) or X series (X.ceed, X.cite), compares the files
+and produces a csv file outlining differences in the protocols
 
 """
 
@@ -15,9 +17,12 @@ from tkinter import filedialog, messagebox
 import sys
 import csv
 
-selection = 0
+selection = 0 #global var for CT series selection
 
 class SelectionBox(tk.Frame):
+    """
+    GUI for commencing code, selecting a CT series
+    """
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
         self.parent = parent
@@ -43,19 +48,6 @@ def pass_selection(x):
     selection=x
     root.destroy()
        
-
-#cols = ["Protocol", "Range", "SeriesDescription", "RefKV", "Voltage", "QualityRefMAs", "CustomMAs", "CustomMAsA", "CustomMAsB", "CAREkV",
-#        "OptimizeSliderPosition", "Care", "CareDoseType", "CTDIw", "FastAdjustLimitScanTime", "FastAdjustLimitMaxMAs", 
-#        "DoseNotificationValueCTDIvol", "DoseNotificationValueDLP", "RotTime", "ScanTime", "Delay", "PitchFactor", "Feed", "SliceEffective",
-#        "Acq.", "ReconSliceEffective", "ReconIncr", "NoOfImages", "Kernel", "Window", "ApiId", "Comment1", "Comment2", "Transfer1", "Transfer2",
-#        "Transfer3", "SyngoViaTaskflow", "SyngoViaProcessingID", "ScanStart", "ScanEnd", "Pulsing", "PulsingStart", "PulsingEnd", "BestPhase", "PaseStart", "Multiphase" ]
-
-
-
-#fpath = "C:/Users/bognarj/OneDrive - Queensland Health/xml Protocol Checker/"
-#file = "PL.xml"
-#file2 = "PL2.xml"
-#out = "text.csv"
 
 ### File opening and error handling for accessing an xml file
 def get_filename():
@@ -106,7 +98,7 @@ def return_error(string):
     root.destroy()
     sys.exit()
 
-### Function to convert xml file to dictionary format for Somatom series CT
+### Function to convert xml file to dictionary format for Force series CT
 def s_xml_to_dict(xmlparse):
     
     root = xmlparse.getroot()
@@ -161,7 +153,6 @@ def x_xml_to_dict(xmlparse):
     top_dict = {}
     prot_vals = {}   
     for i in root.find("Mode").iter("ScanEntry"):
-        #if i.tag == "ScanEntry":
 
         if list(i.attrib.values())[0] == "Protocol":
              name = name_get(i)
@@ -183,7 +174,6 @@ def x_xml_to_dict(xmlparse):
         elif list(i.attrib.values())[0] == "ReconCompound":
             recon_list = []
             for k in list(i):
-                #print(len(k))
                 if k.tag == "Name":
                     for l in list(k):
                         recon_list.append(l.text)
@@ -191,13 +181,9 @@ def x_xml_to_dict(xmlparse):
                 if len(recon_list) == len(k):
                     for pair in zip(recon_list,k):
                         top_dict[name][range_name][pair[0]][k.tag] = pair[1].text
-                        #print(pair[1].tag)
                 elif len(k) == 1:
                     for recon in recon_list:
                         top_dict[name][range_name][recon][k.tag] = list(k)[0].text
-
-        
-        
     return top_dict
 
 ### Function to compare two dictionaries of the format created from xml_to_dict functions
@@ -207,7 +193,6 @@ def compare_dicts(dict1, dict2):
         try:
             views = dict2[protocol]
         except KeyError:
-            #print("Protocol not found: " + protocol)
             output_csv.append(["Missing Protocol",protocol])
             continue
             
@@ -215,7 +200,6 @@ def compare_dicts(dict1, dict2):
             try:
                 v = dict2[protocol][view]
             except KeyError:
-                #print("Range not found: " + protocol + " -> " + view)
                 output_csv.append(["Missing Range",protocol,view])
                 continue
             
@@ -224,17 +208,14 @@ def compare_dicts(dict1, dict2):
                     try:
                         r = dict2[protocol][view][parameter[0]]
                     except KeyError:
-                        #print("Recon not found: " + protocol + " -> " + view + " -> " + parameter[0])
                         output_csv.append(["Missing Recon",protocol,view,parameter[0]])
                         continue
                     
                     for recon_parameter in list(dict1[protocol][view][parameter[0]].keys()):
                         if dict1[protocol][view][parameter[0]][recon_parameter] != dict2[protocol][view][parameter[0]][recon_parameter]:
-                            #print("Recon value mismatch: " + protocol + " -> " + view + " -> " + parameter[0] + " -> " + recon_parameter)
                             output_csv.append(["Recon Value Mismatch",protocol,view,parameter[0],recon_parameter,dict1[protocol][view][parameter[0]][recon_parameter],dict2[protocol][view][parameter[0]][recon_parameter]])
                 else:
                     if dict1[protocol][view][parameter[0]] != dict2[protocol][view][parameter[0]]:
-                        #print("Value mismatch: "  + protocol + " -> " + view + " -> " + parameter[0])
                         output_csv.append(["Value Mismatch",protocol,view,"",parameter[0],dict1[protocol][view][parameter[0]],dict2[protocol][view][parameter[0]]])   
     return output_csv
  
@@ -243,34 +224,18 @@ root.resizable(False,False)
 SelectionBox(root).pack(side='top', fill='both', expand=True)
 root.mainloop()
 
-#f1 = get_filename()
-#f2 = get_filename()
-
 dict1 = None
 dict2 = None
 
 if selection == 0:
-    #print('No Selection')
     return_error("No CT series selected")
-    #Message box and close
 
 elif selection == 1:
-    #print("Somatom series selected")
     dict1 = dict_checker(get_filename(), "s")
     dict2 = dict_checker(get_filename(), "s")
         
 elif selection == 2:
-    #print("X series selected")
     dict1 = dict_checker(get_filename(), "x")
     dict2 = dict_checker(get_filename(), "x")
-    #test_dict = test_fun(f1)
-
 
 save_file(compare_dicts(dict1, dict2))
-
-#test_dict1 = xml_to_dict(f1)
-#test_dict2 = xml_to_dict(f2)
-
-#output = compare_dicts(test_dict1, test_dict2)
-
-#save_file(output)
